@@ -2,10 +2,12 @@ import 'dart:async';
 
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 
 import '../../auth/auth_service.dart';
 import '../../auth/firebase_bootstrap.dart';
 import '../../journal/domain/sleep_log.dart';
+import '../data/sleep_audio_service.dart';
 import '../data/sleep_repository.dart';
 import '../domain/session_engine.dart';
 import '../domain/sleep_session_config.dart';
@@ -386,39 +388,94 @@ class ActiveSessionScreen extends StatefulWidget {
   State<ActiveSessionScreen> createState() => _ActiveSessionScreenState();
 }
 
-class _ActiveSessionScreenState extends State<ActiveSessionScreen> {
+class _ActiveSessionScreenState extends State<ActiveSessionScreen>
+    with SingleTickerProviderStateMixin {
   late final SessionEngine _engine;
+  final _audioService = SleepAudioService();
   final _notesController = TextEditingController();
-  Timer? _timer;
-  Duration _elapsed = Duration.zero;
+  late final Ticker _ticker;
+
+  // Notifiers for decoupled, high-performance micro-rebuilds
+  late final ValueNotifier<Duration> _elapsedNotifier;
+  late final ValueNotifier<int> _remainingSecondsNotifier;
+  late final ValueNotifier<BreathPhase> _phaseNotifier;
+  late final ValueNotifier<double> _bpmNotifier;
+
+  Duration _sessionOffset = Duration.zero;
+  Duration _lastTickElapsed = Duration.zero;
   bool _paused = false;
+  BreathPhase _prevPhase = BreathPhase.complete;
 
   @override
   void initState() {
     super.initState();
     _engine = SessionEngine(widget.config);
-    _timer = Timer.periodic(const Duration(milliseconds: 250), _tick);
+    _audioService.prepare(widget.config.soundMode, widget.config.soundVolume);
+
+    final initialFrame = _engine.frameAt(Duration.zero);
+    _elapsedNotifier = ValueNotifier<Duration>(Duration.zero);
+    _remainingSecondsNotifier =
+        ValueNotifier<int>(initialFrame.remaining.inSeconds);
+    _phaseNotifier = ValueNotifier<BreathPhase>(initialFrame.phase);
+    _bpmNotifier = ValueNotifier<double>(initialFrame.bpm);
+
+    _ticker = createTicker(_onTick);
+    _ticker.start();
   }
 
   @override
   void dispose() {
-    _timer?.cancel();
+    _ticker.dispose();
+    _audioService.stop();
+    _audioService.dispose();
     _notesController.dispose();
+    _elapsedNotifier.dispose();
+    _remainingSecondsNotifier.dispose();
+    _phaseNotifier.dispose();
+    _bpmNotifier.dispose();
     super.dispose();
   }
 
-  void _tick(Timer timer) {
+  void _onTick(Duration elapsed) {
     if (_paused) return;
-    final next = _elapsed + const Duration(milliseconds: 250);
-    final frame = _engine.frameAt(next);
-    setState(() => _elapsed = frame.elapsed);
+    _lastTickElapsed = elapsed;
+    final totalElapsed = _sessionOffset + elapsed;
+    final frame = _engine.frameAt(totalElapsed);
+
+    // Notify listeners directly without rebuilding the entire page Scaffold
+    _elapsedNotifier.value = totalElapsed;
+
+    final remainingSecs = frame.remaining.inSeconds;
+    if (_remainingSecondsNotifier.value != remainingSecs) {
+      _remainingSecondsNotifier.value = remainingSecs;
+    }
+
+    if (frame.phase != _prevPhase && !frame.isComplete) {
+      _prevPhase = frame.phase;
+      _phaseNotifier.value = frame.phase;
+
+      if (frame.phase == BreathPhase.inhale) {
+        _audioService.playInhaleCue(widget.config.soundVolume);
+      } else if (frame.phase == BreathPhase.exhale) {
+        _audioService.playExhaleCue(widget.config.soundVolume);
+      }
+    }
+
+    if (_bpmNotifier.value != frame.bpm) {
+      _bpmNotifier.value = frame.bpm;
+    }
+
     if (frame.isComplete) {
-      _timer?.cancel();
+      if (_ticker.isActive) _ticker.stop();
+      _audioService.stop();
       _showCompletionSheet();
     }
   }
 
   Future<void> _showCompletionSheet() async {
+    if (_ticker.isActive) _ticker.stop();
+    await _audioService.stop();
+    if (!mounted) return;
     final log = await showModalBottomSheet<SleepLog>(
       context: context,
       isScrollControlled: true,
@@ -445,13 +502,7 @@ class _ActiveSessionScreenState extends State<ActiveSessionScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final frame = _engine.frameAt(_elapsed);
     final colors = Theme.of(context).colorScheme;
-    final phaseText = switch (frame.phase) {
-      BreathPhase.inhale => 'Breathe in',
-      BreathPhase.exhale => 'Breathe out',
-      BreathPhase.complete => 'Complete',
-    };
     final glowColor = Color.lerp(
       const Color(0xff12475f),
       const Color(0xffffc76f),
@@ -472,52 +523,85 @@ class _ActiveSessionScreenState extends State<ActiveSessionScreen> {
                     icon: const Icon(Icons.close),
                   ),
                   const Spacer(),
-                  Text(_formatDuration(frame.remaining)),
+                  ValueListenableBuilder<int>(
+                    valueListenable: _remainingSecondsNotifier,
+                    builder: (context, remainingSeconds, _) {
+                      final duration = Duration(seconds: remainingSeconds);
+                      return Text(_formatDuration(duration));
+                    },
+                  ),
                 ],
               ),
               const Spacer(),
-              AnimatedScale(
-                scale: frame.scale,
-                duration: const Duration(milliseconds: 230),
-                curve: Curves.easeInOut,
-                child: Container(
-                  width: 250,
-                  height: 250,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: glowColor.withValues(alpha: frame.brightness),
-                    boxShadow: [
-                      BoxShadow(
-                        color: glowColor.withValues(
-                          alpha: frame.brightness * 0.8,
-                        ),
-                        blurRadius: 90,
-                        spreadRadius: 24,
-                      ),
-                    ],
-                  ),
-                ),
+              // Optimize: Listen only to elapsed time. Pre-build the glow once and reuse it.
+              ValueListenableBuilder<Duration>(
+                valueListenable: _elapsedNotifier,
+                builder: (context, elapsed, child) {
+                  final frame = _engine.frameAt(elapsed);
+                  return Transform.scale(
+                    scale: frame.scale,
+                    child: Opacity(
+                      opacity: frame.brightness.clamp(0.0, 1.0),
+                      child: child,
+                    ),
+                  );
+                },
+                child: _BreathingCircleGlow(glowColor: glowColor),
               ),
               const SizedBox(height: 44),
-              Text(
-                phaseText,
-                style: Theme.of(context).textTheme.displaySmall?.copyWith(
-                  color: colors.onSurface,
-                  fontWeight: FontWeight.w800,
-                ),
+              ValueListenableBuilder<BreathPhase>(
+                valueListenable: _phaseNotifier,
+                builder: (context, phase, _) {
+                  final phaseText = switch (phase) {
+                    BreathPhase.inhale => 'Breathe in',
+                    BreathPhase.exhale => 'Breathe out',
+                    BreathPhase.complete => 'Complete',
+                  };
+                  return Text(
+                    phaseText,
+                    style: Theme.of(context).textTheme.displaySmall?.copyWith(
+                      color: colors.onSurface,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  );
+                },
               ),
               const SizedBox(height: 8),
-              Text(
-                '${frame.bpm.toStringAsFixed(1)} breaths per minute',
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  color: colors.onSurfaceVariant,
-                ),
+              ValueListenableBuilder<double>(
+                valueListenable: _bpmNotifier,
+                builder: (context, bpm, _) {
+                  return Text(
+                    '${bpm.toStringAsFixed(1)} breaths per minute',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      color: colors.onSurfaceVariant,
+                    ),
+                  );
+                },
               ),
               const SizedBox(height: 34),
-              LinearProgressIndicator(value: frame.progress),
+              ValueListenableBuilder<Duration>(
+                valueListenable: _elapsedNotifier,
+                builder: (context, elapsed, _) {
+                  final frame = _engine.frameAt(elapsed);
+                  return LinearProgressIndicator(value: frame.progress);
+                },
+              ),
               const Spacer(),
               FilledButton.tonalIcon(
-                onPressed: () => setState(() => _paused = !_paused),
+                onPressed: () {
+                  setState(() {
+                    _paused = !_paused;
+                    if (_paused) {
+                      if (_ticker.isActive) _ticker.stop();
+                      _sessionOffset += _lastTickElapsed;
+                      _lastTickElapsed = Duration.zero;
+                      _audioService.pause();
+                    } else {
+                      _ticker.start();
+                      _audioService.resume();
+                    }
+                  });
+                },
                 icon: Icon(_paused ? Icons.play_arrow : Icons.pause),
                 label: Text(_paused ? 'Resume' : 'Pause'),
               ),
@@ -668,5 +752,31 @@ class JournalCard extends StatelessWidget {
 
   String _formatDate(DateTime date) {
     return '${date.month}/${date.day}/${date.year}';
+  }
+}
+
+class _BreathingCircleGlow extends StatelessWidget {
+  const _BreathingCircleGlow({required this.glowColor});
+
+  final Color glowColor;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 250,
+      height: 250,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        gradient: RadialGradient(
+          colors: [
+            Colors.white,
+            glowColor,
+            glowColor.withValues(alpha: 0.45),
+            glowColor.withValues(alpha: 0.0),
+          ],
+          stops: const [0.0, 0.2, 0.55, 1.0],
+        ),
+      ),
+    );
   }
 }

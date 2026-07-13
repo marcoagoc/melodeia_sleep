@@ -56,8 +56,10 @@ class SessionEngine {
       );
     }
 
-    final breathMs = 60000 / bpm;
-    final cyclePosition = (elapsedMs % breathMs) / breathMs;
+    final double averageBpm = config.startBpm + (bpm - config.startBpm) / 2.0;
+    final double minutesElapsed = elapsedMs / 60000.0;
+    final double phase = minutesElapsed * averageBpm;
+    final double cyclePosition = phase % 1.0;
     final inhaleRatio = config.inhaleRatio.clamp(0.2, 0.8);
     final isInhale = cyclePosition <= inhaleRatio;
     final phaseProgress = isInhale
