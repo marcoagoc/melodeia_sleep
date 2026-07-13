@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_ui_auth/firebase_ui_auth.dart' as fui;
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 
@@ -30,6 +31,7 @@ class _HomeScreenState extends State<HomeScreen> {
   List<SleepLog> _logs = const [];
   User? _user;
   bool _loading = true;
+  bool _skippedAuth = false;
 
   @override
   void initState() {
@@ -44,11 +46,19 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _load() async {
-    final user = await _authService.ensureAnonymousUser(
-      firebaseReady: widget.firebaseStatus.isReady,
-    );
+    final user = widget.firebaseStatus.isReady
+        ? _authService.currentUser
+        : null;
     final config = await _repository.loadLastConfig();
     final logs = await _repository.loadLocalLogs();
+
+    if (user != null) {
+      await _repository.syncAllLocalLogs(
+        uid: user.uid,
+        firebaseReady: widget.firebaseStatus.isReady,
+      );
+    }
+
     if (!mounted) return;
     setState(() {
       _user = user;
@@ -56,6 +66,94 @@ class _HomeScreenState extends State<HomeScreen> {
       _logs = logs;
       _loading = false;
     });
+  }
+
+  void _showSignInScreen() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => fui.SignInScreen(
+          providers: [fui.EmailAuthProvider()],
+          actions: [
+            fui.AuthStateChangeAction<fui.SignedIn>((context, state) {
+              Navigator.pop(context);
+              _load();
+            }),
+            fui.AuthStateChangeAction<fui.UserCreated>((context, state) {
+              Navigator.pop(context);
+              _load();
+            }),
+          ],
+        ),
+      ),
+    ).then((_) {
+      _load();
+    });
+  }
+
+  void _showRegistrationScreen() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => fui.RegisterScreen(
+          providers: [fui.EmailAuthProvider()],
+          actions: [
+            fui.AuthStateChangeAction<fui.SignedIn>((context, state) {
+              Navigator.pop(context);
+              _load();
+            }),
+            fui.AuthStateChangeAction<fui.UserCreated>((context, state) {
+              Navigator.pop(context);
+              _load();
+            }),
+          ],
+        ),
+      ),
+    ).then((_) {
+      _load();
+    });
+  }
+
+  void _suggestRegistration() {
+    showDialog(
+      context: context,
+      builder: (context) {
+        final colors = Theme.of(context).colorScheme;
+        return AlertDialog(
+          title: Text(
+            'Save your progress!',
+            style: TextStyle(
+              color: colors.onSurface,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          content: const Text(
+            'Create a registered account to sync your sleep journal and settings to the cloud, so you never lose them if you change devices.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Maybe Later'),
+            ),
+            FilledButton(
+              onPressed: () {
+                Navigator.pop(context);
+                _showRegistrationScreen();
+              },
+              child: const Text('Register Now'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _signOut() async {
+    await _authService.signOut();
+    setState(() {
+      _skippedAuth = false;
+    });
+    await _load();
   }
 
   Future<void> _saveConfig(SleepSessionConfig config) async {
@@ -81,12 +179,42 @@ class _HomeScreenState extends State<HomeScreen> {
     final logs = await _repository.loadLocalLogs();
     if (!mounted) return;
     setState(() => _logs = logs);
+
+    if (widget.firebaseStatus.isReady && _authService.isAnonymous) {
+      _suggestRegistration();
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     if (_loading) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+
+    if (widget.firebaseStatus.isReady && _user == null && !_skippedAuth) {
+      return WelcomeScreen(
+        onContinueAsGuest: () async {
+          setState(() => _loading = true);
+          try {
+            await _authService.signInAnonymously();
+          } catch (e) {
+            debugPrint('Failed to sign in anonymously: $e');
+            if (!context.mounted) return;
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  'Guest mode active locally. (Could not connect online: $e)',
+                ),
+              ),
+            );
+          }
+          setState(() {
+            _skippedAuth = true;
+          });
+          await _load();
+        },
+        onSignInRegister: _showSignInScreen,
+      );
     }
 
     return Scaffold(
@@ -96,7 +224,12 @@ class _HomeScreenState extends State<HomeScreen> {
             SliverPadding(
               padding: const EdgeInsets.fromLTRB(20, 18, 20, 10),
               sliver: SliverToBoxAdapter(
-                child: _Header(firebaseStatus: widget.firebaseStatus),
+                child: _Header(
+                  firebaseStatus: widget.firebaseStatus,
+                  user: _user,
+                  onSignIn: _showSignInScreen,
+                  onSignOut: _signOut,
+                ),
               ),
             ),
             SliverPadding(
@@ -121,9 +254,17 @@ class _HomeScreenState extends State<HomeScreen> {
 }
 
 class _Header extends StatelessWidget {
-  const _Header({required this.firebaseStatus});
+  const _Header({
+    required this.firebaseStatus,
+    required this.user,
+    required this.onSignIn,
+    required this.onSignOut,
+  });
 
   final FirebaseBootstrapStatus firebaseStatus;
+  final User? user;
+  final VoidCallback onSignIn;
+  final VoidCallback onSignOut;
 
   @override
   Widget build(BuildContext context) {
@@ -146,37 +287,94 @@ class _Header extends StatelessWidget {
           ).textTheme.bodyLarge?.copyWith(color: colors.onSurfaceVariant),
         ),
         const SizedBox(height: 14),
-        DecoratedBox(
-          decoration: BoxDecoration(
-            color: firebaseStatus.isReady
-                ? colors.primaryContainer.withValues(alpha: 0.3)
-                : colors.tertiaryContainer.withValues(alpha: 0.32),
-            borderRadius: BorderRadius.circular(14),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(12),
-            child: Row(
-              children: [
-                Icon(
-                  firebaseStatus.isReady
-                      ? Icons.cloud_done_outlined
-                      : Icons.cloud_off_outlined,
-                  color: colors.onSurface,
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    firebaseStatus.isReady
-                        ? 'Anonymous sync is ready.'
-                        : firebaseStatus.message ??
-                              'Cloud sync will activate after Firebase setup.',
-                    style: Theme.of(context).textTheme.bodyMedium,
+        if (!firebaseStatus.isReady)
+          DecoratedBox(
+            decoration: BoxDecoration(
+              color: colors.tertiaryContainer.withValues(alpha: 0.32),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Row(
+                children: [
+                  Icon(Icons.cloud_off_outlined, color: colors.onSurface),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      firebaseStatus.message ??
+                          'Cloud sync will activate after Firebase setup.',
+                      style: Theme.of(context).textTheme.bodyMedium,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
+            ),
+          )
+        else if (user?.isAnonymous ?? true)
+          DecoratedBox(
+            decoration: BoxDecoration(
+              color: colors.primaryContainer.withValues(alpha: 0.2),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              child: Row(
+                children: [
+                  Icon(Icons.person_outline, color: colors.primary),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'Guest Mode (Offline sync)',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: onSignIn,
+                    style: TextButton.styleFrom(
+                      visualDensity: VisualDensity.compact,
+                      foregroundColor: colors.primary,
+                    ),
+                    child: const Text('Sign In / Register'),
+                  ),
+                ],
+              ),
+            ),
+          )
+        else
+          DecoratedBox(
+            decoration: BoxDecoration(
+              color: colors.primaryContainer.withValues(alpha: 0.35),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              child: Row(
+                children: [
+                  Icon(Icons.cloud_done_outlined, color: colors.primary),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'Synced as ${user?.email ?? "User"}',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: onSignOut,
+                    style: TextButton.styleFrom(
+                      visualDensity: VisualDensity.compact,
+                      foregroundColor: colors.error,
+                    ),
+                    child: const Text('Sign Out'),
+                  ),
+                ],
+              ),
             ),
           ),
-        ),
       ],
     );
   }
@@ -414,8 +612,9 @@ class _ActiveSessionScreenState extends State<ActiveSessionScreen>
 
     final initialFrame = _engine.frameAt(Duration.zero);
     _elapsedNotifier = ValueNotifier<Duration>(Duration.zero);
-    _remainingSecondsNotifier =
-        ValueNotifier<int>(initialFrame.remaining.inSeconds);
+    _remainingSecondsNotifier = ValueNotifier<int>(
+      initialFrame.remaining.inSeconds,
+    );
     _phaseNotifier = ValueNotifier<BreathPhase>(initialFrame.phase);
     _bpmNotifier = ValueNotifier<double>(initialFrame.bpm);
 
@@ -775,6 +974,163 @@ class _BreathingCircleGlow extends StatelessWidget {
             glowColor.withValues(alpha: 0.0),
           ],
           stops: const [0.0, 0.2, 0.55, 1.0],
+        ),
+      ),
+    );
+  }
+}
+
+class WelcomeScreen extends StatelessWidget {
+  const WelcomeScreen({
+    required this.onContinueAsGuest,
+    required this.onSignInRegister,
+    super.key,
+  });
+
+  final VoidCallback onContinueAsGuest;
+  final VoidCallback onSignInRegister;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+
+    return Scaffold(
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [Color(0xff091420), Color(0xff060c13)],
+          ),
+        ),
+        child: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: 28.0,
+              vertical: 24.0,
+            ),
+            child: Column(
+              children: [
+                const Spacer(),
+                const _GlowingSessionCircle(),
+                const SizedBox(height: 48),
+                Text(
+                  'Melodeia Sleep',
+                  style: Theme.of(context).textTheme.displayMedium?.copyWith(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: -0.5,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'A calm sound and light coach for slower breathing, sunrise fades, and nightly reflection.',
+                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                    color: const Color(0xffa0b2c6),
+                    height: 1.5,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const Spacer(),
+                FilledButton.icon(
+                  onPressed: onSignInRegister,
+                  icon: const Icon(Icons.login_rounded),
+                  label: const Text('Sign In / Register'),
+                  style: FilledButton.styleFrom(
+                    minimumSize: const Size.fromHeight(56),
+                    backgroundColor: colors.primary,
+                    foregroundColor: colors.onPrimary,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    elevation: 4,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                OutlinedButton.icon(
+                  onPressed: onContinueAsGuest,
+                  icon: const Icon(Icons.person_outline_rounded),
+                  label: const Text('Continue as Guest'),
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: const Size.fromHeight(56),
+                    foregroundColor: const Color(0xff8bc5e5),
+                    side: const BorderSide(
+                      color: Color(0xff3a546c),
+                      width: 1.5,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 24),
+                Text(
+                  'Start sleeping better tonight. No registration required.',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: const Color(0xff556b82),
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _GlowingSessionCircle extends StatefulWidget {
+  const _GlowingSessionCircle();
+
+  @override
+  State<_GlowingSessionCircle> createState() => _GlowingSessionCircleState();
+}
+
+class _GlowingSessionCircleState extends State<_GlowingSessionCircle>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  late final Animation<double> _animation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 4),
+    )..repeat(reverse: true);
+    _animation = Tween<double>(
+      begin: 0.85,
+      end: 1.15,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    const glowColor = Color(0xff12475f);
+    return ScaleTransition(
+      scale: _animation,
+      child: Container(
+        width: 180,
+        height: 180,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          gradient: RadialGradient(
+            colors: [
+              Colors.white,
+              glowColor,
+              glowColor.withValues(alpha: 0.4),
+              glowColor.withValues(alpha: 0.0),
+            ],
+            stops: const [0.0, 0.25, 0.6, 1.0],
+          ),
         ),
       ),
     );

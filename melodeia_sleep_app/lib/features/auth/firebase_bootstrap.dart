@@ -1,4 +1,5 @@
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_ui_auth/firebase_ui_auth.dart';
 
 class FirebaseBootstrapStatus {
   const FirebaseBootstrapStatus({required this.isReady, this.message});
@@ -13,6 +14,9 @@ class FirebaseBootstrap {
       if (Firebase.apps.isEmpty) {
         await Firebase.initializeApp();
       }
+      FirebaseUIAuth.configureProviders([
+        EmailAuthProvider(),
+      ]);
       return const FirebaseBootstrapStatus(isReady: true);
     } on Object {
       return FirebaseBootstrapStatus(

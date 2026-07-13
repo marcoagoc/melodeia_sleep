@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "713569652280",
+    "project_id": "melodeia-sleep",
+    "storage_bucket": "melodeia-sleep.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:713569652280:android:f6ec3f9151bd6d880fa0cd",
+        "android_client_info": {
+          "package_name": "com.example.melodeia_sleep_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDUG2aW65gB8CU9kFuBAnsmDpW2_CUv7QE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

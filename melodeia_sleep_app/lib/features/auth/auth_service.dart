@@ -9,7 +9,7 @@ class AuthService {
 
   FirebaseAuth get _auth => _firebaseAuth ??= FirebaseAuth.instance;
 
-  User? get currentUser => _firebaseAuth?.currentUser;
+  User? get currentUser => _auth.currentUser;
 
   Future<User?> ensureAnonymousUser({required bool firebaseReady}) async {
     if (!firebaseReady) return null;
@@ -17,6 +17,18 @@ class AuthService {
     if (existing != null) return existing;
     final credential = await _auth.signInAnonymously();
     return credential.user;
+  }
+
+  bool get isAnonymous => currentUser?.isAnonymous ?? false;
+
+  bool get isSignedIn => currentUser != null && !isAnonymous;
+
+  Future<UserCredential> signInAnonymously() async {
+    return await _auth.signInAnonymously();
+  }
+
+  Future<void> signOut() async {
+    await _auth.signOut();
   }
 
   bool get canUpgradeAccount => currentUser?.isAnonymous ?? false;

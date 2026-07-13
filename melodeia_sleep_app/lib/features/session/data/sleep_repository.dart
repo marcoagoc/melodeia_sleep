@@ -71,4 +71,15 @@ class SleepRepository {
         .doc(log.id)
         .set(log.toMap(), SetOptions(merge: true));
   }
+
+  Future<void> syncAllLocalLogs({
+    required String uid,
+    required bool firebaseReady,
+  }) async {
+    if (!firebaseReady) return;
+    final logs = await loadLocalLogs();
+    for (final log in logs) {
+      await syncLog(uid: uid, log: log, firebaseReady: firebaseReady);
+    }
+  }
 }
