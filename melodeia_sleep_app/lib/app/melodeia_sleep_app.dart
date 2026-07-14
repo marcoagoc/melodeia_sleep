@@ -20,7 +20,7 @@ class MelodeiaSleepApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         colorScheme: scheme,
-        scaffoldBackgroundColor: const Color(0xff071019),
+        scaffoldBackgroundColor: const Color(0xff030712),
         sliderTheme: SliderThemeData(
           activeTrackColor: scheme.primary,
           inactiveTrackColor: scheme.surfaceContainerHighest,

@@ -217,43 +217,84 @@ class _HomeScreenState extends State<HomeScreen> {
       );
     }
 
+    final colors = Theme.of(context).colorScheme;
+    final radialBgColor = colors.primary.withValues(alpha: 0.15);
+    const outerBgColor = Color(0xff030712);
+
     return Scaffold(
-      body: SafeArea(
-        child: CustomScrollView(
-          slivers: [
-            SliverPadding(
-              padding: const EdgeInsets.fromLTRB(20, 18, 20, 10),
-              sliver: SliverToBoxAdapter(
-                child: _Header(
-                  firebaseStatus: widget.firebaseStatus,
-                  user: _user,
-                  onSignIn: _showSignInScreen,
-                  onSignOut: _signOut,
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: RadialGradient(
+            center: const Alignment(0, -0.4),
+            radius: 1.3,
+            colors: [
+              radialBgColor,
+              outerBgColor,
+            ],
+            stops: const [0.0, 1.0],
+          ),
+        ),
+        child: SafeArea(
+          child: CustomScrollView(
+            slivers: [
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(20, 18, 20, 10),
+                sliver: SliverToBoxAdapter(
+                  child: _Header(
+                    firebaseStatus: widget.firebaseStatus,
+                    user: _user,
+                    onSignIn: _showSignInScreen,
+                    onSignOut: _signOut,
+                  ),
                 ),
               ),
-            ),
-            SliverPadding(
-              padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
-              sliver: SliverToBoxAdapter(
-                child: SessionSetupCard(
-                  config: _config,
-                  onChanged: _saveConfig,
-                  onStart: _startSession,
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
+                sliver: SliverToBoxAdapter(
+                  child: SessionSetupCard(
+                    config: _config,
+                    onChanged: _saveConfig,
+                    onStart: _startSession,
+                  ),
                 ),
               ),
-            ),
-            SliverPadding(
-              padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
-              sliver: SliverToBoxAdapter(child: JournalCard(logs: _logs)),
-            ),
-          ],
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+                sliver: SliverToBoxAdapter(child: JournalCard(logs: _logs)),
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 }
 
-class _Header extends StatelessWidget {
+class _GlassCard extends StatelessWidget {
+  const _GlassCard({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.03),
+        borderRadius: BorderRadius.circular(28),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.08),
+          width: 1,
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: child,
+      ),
+    );
+  }
+}
+
+class _Header extends StatefulWidget {
   const _Header({
     required this.firebaseStatus,
     required this.user,
@@ -267,57 +308,153 @@ class _Header extends StatelessWidget {
   final VoidCallback onSignOut;
 
   @override
+  State<_Header> createState() => _HeaderState();
+}
+
+class _HeaderState extends State<_Header> {
+  late Timer _timer;
+  String _timeString = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _updateTime();
+    _timer = Timer.periodic(const Duration(seconds: 30), (timer) {
+      _updateTime();
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer.cancel();
+    super.dispose();
+  }
+
+  void _updateTime() {
+    final now = DateTime.now();
+    final hour = now.hour.toString().padLeft(2, '0');
+    final minute = now.minute.toString().padLeft(2, '0');
+    final newTime = '$hour:$minute';
+    if (_timeString != newTime) {
+      setState(() {
+        _timeString = newTime;
+      });
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'Melodeia Sleep',
-          style: Theme.of(context).textTheme.displaySmall?.copyWith(
-            color: colors.onSurface,
-            fontWeight: FontWeight.w800,
-          ),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 38,
+                  height: 38,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: colors.primary.withValues(alpha: 0.15),
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.1),
+                    ),
+                  ),
+                  child: Center(
+                    child: Container(
+                      width: 12,
+                      height: 12,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: colors.primary,
+                        boxShadow: [
+                          BoxShadow(
+                            color: colors.primary,
+                            blurRadius: 8,
+                            spreadRadius: 1,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  'LUNA',
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w300,
+                    letterSpacing: 4.0,
+                  ),
+                ),
+              ],
+            ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  'CURRENT TIME',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Colors.white.withValues(alpha: 0.4),
+                    fontWeight: FontWeight.w500,
+                    letterSpacing: 1.5,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  _timeString,
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w200,
+                  ),
+                ),
+              ],
+            ),
+          ],
         ),
-        const SizedBox(height: 8),
-        Text(
-          'A calm sound and light coach for slower breathing, sunrise fades, and nightly reflection.',
-          style: Theme.of(
-            context,
-          ).textTheme.bodyLarge?.copyWith(color: colors.onSurfaceVariant),
-        ),
-        const SizedBox(height: 14),
-        if (!firebaseStatus.isReady)
-          DecoratedBox(
+        const SizedBox(height: 20),
+        if (!widget.firebaseStatus.isReady)
+          Container(
             decoration: BoxDecoration(
-              color: colors.tertiaryContainer.withValues(alpha: 0.32),
-              borderRadius: BorderRadius.circular(14),
+              color: colors.tertiaryContainer.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: colors.tertiaryContainer.withValues(alpha: 0.25),
+              ),
             ),
             child: Padding(
               padding: const EdgeInsets.all(12),
               child: Row(
                 children: [
-                  Icon(Icons.cloud_off_outlined, color: colors.onSurface),
+                  Icon(Icons.cloud_off_outlined, color: colors.tertiary),
                   const SizedBox(width: 10),
                   Expanded(
                     child: Text(
-                      firebaseStatus.message ??
+                      widget.firebaseStatus.message ??
                           'Cloud sync will activate after Firebase setup.',
-                      style: Theme.of(context).textTheme.bodyMedium,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: Colors.white.withValues(alpha: 0.7),
+                      ),
                     ),
                   ),
                 ],
               ),
             ),
           )
-        else if (user?.isAnonymous ?? true)
-          DecoratedBox(
+        else if (widget.user?.isAnonymous ?? true)
+          Container(
             decoration: BoxDecoration(
-              color: colors.primaryContainer.withValues(alpha: 0.2),
-              borderRadius: BorderRadius.circular(14),
+              color: colors.primary.withValues(alpha: 0.05),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: colors.primary.withValues(alpha: 0.15),
+              ),
             ),
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
               child: Row(
                 children: [
                   Icon(Icons.person_outline, color: colors.primary),
@@ -327,11 +464,12 @@ class _Header extends StatelessWidget {
                       'Guest Mode (Offline sync)',
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                         fontWeight: FontWeight.w500,
+                        color: Colors.white.withValues(alpha: 0.8),
                       ),
                     ),
                   ),
                   TextButton(
-                    onPressed: onSignIn,
+                    onPressed: widget.onSignIn,
                     style: TextButton.styleFrom(
                       visualDensity: VisualDensity.compact,
                       foregroundColor: colors.primary,
@@ -343,28 +481,32 @@ class _Header extends StatelessWidget {
             ),
           )
         else
-          DecoratedBox(
+          Container(
             decoration: BoxDecoration(
-              color: colors.primaryContainer.withValues(alpha: 0.35),
-              borderRadius: BorderRadius.circular(14),
+              color: colors.primary.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: colors.primary.withValues(alpha: 0.2),
+              ),
             ),
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
               child: Row(
                 children: [
                   Icon(Icons.cloud_done_outlined, color: colors.primary),
                   const SizedBox(width: 10),
                   Expanded(
                     child: Text(
-                      'Synced as ${user?.email ?? "User"}',
+                      'Synced as ${widget.user?.email ?? "User"}',
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                         fontWeight: FontWeight.w600,
+                        color: Colors.white.withValues(alpha: 0.8),
                       ),
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
                   TextButton(
-                    onPressed: onSignOut,
+                    onPressed: widget.onSignOut,
                     style: TextButton.styleFrom(
                       visualDensity: VisualDensity.compact,
                       foregroundColor: colors.error,
@@ -395,145 +537,153 @@ class SessionSetupCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(18),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Tonight session',
-              style: Theme.of(
-                context,
-              ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800),
+    return _GlassCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'TONIGHT SESSION',
+            style: Theme.of(context).textTheme.titleSmall?.copyWith(
+              color: Colors.white.withValues(alpha: 0.4),
+              fontWeight: FontWeight.w600,
+              letterSpacing: 1.5,
             ),
-            const SizedBox(height: 16),
-            _SliderRow(
-              label: 'Duration',
-              valueLabel: '${config.durationMinutes} min',
-              value: config.durationMinutes.toDouble(),
-              min: 5,
-              max: 90,
-              divisions: 17,
-              onChanged: (value) =>
-                  onChanged(config.copyWith(durationMinutes: value.round())),
+          ),
+          const SizedBox(height: 16),
+          _PremiumSliderRow(
+            label: 'Duration',
+            valueLabel: '${config.durationMinutes} min',
+            value: config.durationMinutes.toDouble(),
+            min: 5,
+            max: 90,
+            divisions: 17,
+            onChanged: (value) =>
+                onChanged(config.copyWith(durationMinutes: value.round())),
+          ),
+          _PremiumSliderRow(
+            label: 'Start breath',
+            valueLabel: '${config.startBpm.toStringAsFixed(1)} BPM',
+            value: config.startBpm,
+            min: 5,
+            max: 14,
+            divisions: 18,
+            onChanged: (value) => onChanged(config.copyWith(startBpm: value)),
+          ),
+          _PremiumSliderRow(
+            label: 'End breath',
+            valueLabel: '${config.endBpm.toStringAsFixed(1)} BPM',
+            value: config.endBpm,
+            min: 4,
+            max: 10,
+            divisions: 12,
+            onChanged: (value) => onChanged(config.copyWith(endBpm: value)),
+          ),
+          _PremiumSliderRow(
+            label: 'Inhale share',
+            valueLabel: '${(config.inhaleRatio * 100).round()}%',
+            value: config.inhaleRatio,
+            min: 0.3,
+            max: 0.55,
+            divisions: 5,
+            onChanged: (value) =>
+                onChanged(config.copyWith(inhaleRatio: value)),
+          ),
+          _PremiumSliderRow(
+            label: 'Brightness',
+            valueLabel:
+                '${(config.startBrightness * 100).round()}-${(config.endBrightness * 100).round()}%',
+            value: config.endBrightness,
+            min: 0.2,
+            max: 1,
+            divisions: 8,
+            onChanged: (value) =>
+                onChanged(config.copyWith(endBrightness: value)),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'SOUNDSCAPES',
+            style: Theme.of(context).textTheme.titleSmall?.copyWith(
+              color: Colors.white.withValues(alpha: 0.4),
+              fontWeight: FontWeight.w600,
+              letterSpacing: 1.5,
             ),
-            _SliderRow(
-              label: 'Start breath',
-              valueLabel: '${config.startBpm.toStringAsFixed(1)} BPM',
-              value: config.startBpm,
-              min: 5,
-              max: 14,
-              divisions: 18,
-              onChanged: (value) => onChanged(config.copyWith(startBpm: value)),
+          ),
+          const SizedBox(height: 12),
+          _SoundSelectorGrid(
+            selectedMode: config.soundMode,
+            onChanged: (mode) => onChanged(config.copyWith(soundMode: mode)),
+          ),
+          const SizedBox(height: 24),
+          Text(
+            'LIGHTING CUE',
+            style: Theme.of(context).textTheme.titleSmall?.copyWith(
+              color: Colors.white.withValues(alpha: 0.4),
+              fontWeight: FontWeight.w600,
+              letterSpacing: 1.5,
             ),
-            _SliderRow(
-              label: 'End breath',
-              valueLabel: '${config.endBpm.toStringAsFixed(1)} BPM',
-              value: config.endBpm,
-              min: 4,
-              max: 10,
-              divisions: 12,
-              onChanged: (value) => onChanged(config.copyWith(endBpm: value)),
-            ),
-            _SliderRow(
-              label: 'Inhale share',
-              valueLabel: '${(config.inhaleRatio * 100).round()}%',
-              value: config.inhaleRatio,
-              min: 0.3,
-              max: 0.55,
-              divisions: 5,
-              onChanged: (value) =>
-                  onChanged(config.copyWith(inhaleRatio: value)),
-            ),
-            _SliderRow(
-              label: 'Brightness',
-              valueLabel:
-                  '${(config.startBrightness * 100).round()}-${(config.endBrightness * 100).round()}%',
-              value: config.endBrightness,
-              min: 0.2,
-              max: 1,
-              divisions: 8,
-              onChanged: (value) =>
-                  onChanged(config.copyWith(endBrightness: value)),
-            ),
-            const SizedBox(height: 12),
-            Text('Sound mode', style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: SoundMode.values.map((mode) {
-                return ChoiceChip(
-                  label: Text(_soundLabel(mode)),
-                  selected: config.soundMode == mode,
-                  onSelected: (_) =>
-                      onChanged(config.copyWith(soundMode: mode)),
-                );
-              }).toList(),
-            ),
-            const SizedBox(height: 16),
-            Text('Light mode', style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(height: 8),
-            SegmentedButton<LightMode>(
-              segments: const [
-                ButtonSegment(
-                  value: LightMode.off,
-                  icon: Icon(Icons.dark_mode_outlined),
-                  label: Text('Off'),
-                ),
-                ButtonSegment(
-                  value: LightMode.breathingPulse,
-                  icon: Icon(Icons.blur_circular_outlined),
-                  label: Text('Breath'),
-                ),
-                ButtonSegment(
-                  value: LightMode.sunrise,
-                  icon: Icon(Icons.wb_sunny_outlined),
-                  label: Text('Sunrise'),
+          ),
+          const SizedBox(height: 12),
+          _LightModeSelector(
+            selectedMode: config.lightMode,
+            onChanged: (mode) => onChanged(config.copyWith(lightMode: mode)),
+          ),
+          const SizedBox(height: 28),
+          Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(18),
+              gradient: LinearGradient(
+                colors: [
+                  colors.primary,
+                  colors.primary.withValues(alpha: 0.7),
+                ],
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: colors.primary.withValues(alpha: 0.25),
+                  blurRadius: 15,
+                  offset: const Offset(0, 4),
                 ),
               ],
-              selected: {config.lightMode},
-              onSelectionChanged: (selection) =>
-                  onChanged(config.copyWith(lightMode: selection.first)),
             ),
-            const SizedBox(height: 18),
-            FilledButton.icon(
+            child: FilledButton.icon(
               onPressed: onStart,
-              icon: const Icon(Icons.nightlight_round),
-              label: const Text('Start sleep session'),
+              icon: const Icon(Icons.nightlight_round, size: 18),
+              label: const Text(
+                'START SLEEP SESSION',
+                style: TextStyle(
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 1.2,
+                ),
+              ),
               style: FilledButton.styleFrom(
-                minimumSize: const Size.fromHeight(52),
-                backgroundColor: colors.primary,
-                foregroundColor: colors.onPrimary,
+                minimumSize: const Size.fromHeight(54),
+                backgroundColor: Colors.transparent,
+                foregroundColor: Colors.white,
+                shadowColor: Colors.transparent,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(18),
+                ),
               ),
             ),
-            const SizedBox(height: 12),
-            Text(
+          ),
+          const SizedBox(height: 14),
+          Center(
+            child: Text(
               'Relaxation support only. Melodeia Sleep is not a medical device.',
-              style: Theme.of(
-                context,
-              ).textTheme.bodySmall?.copyWith(color: colors.onSurfaceVariant),
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Colors.white.withValues(alpha: 0.25),
+              ),
+              textAlign: TextAlign.center,
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
-
-  String _soundLabel(SoundMode mode) {
-    return switch (mode) {
-      SoundMode.off => 'Off',
-      SoundMode.whiteNoise => 'White noise',
-      SoundMode.breathGuide => 'Breath guide',
-      SoundMode.heartbeat => 'Heartbeat',
-      SoundMode.mixed => 'Mixed',
-    };
-  }
 }
 
-class _SliderRow extends StatelessWidget {
-  const _SliderRow({
+class _PremiumSliderRow extends StatelessWidget {
+  const _PremiumSliderRow({
     required this.label,
     required this.valueLabel,
     required this.value,
@@ -553,27 +703,280 @@ class _SliderRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+
     return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.only(bottom: 12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Expanded(child: Text(label)),
-              Text(valueLabel),
+              Text(
+                label.toUpperCase(),
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Colors.white.withValues(alpha: 0.4),
+                  fontWeight: FontWeight.w500,
+                  letterSpacing: 1.0,
+                ),
+              ),
+              Text(
+                valueLabel,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: colors.primary,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
             ],
           ),
-          Slider(
-            value: value.clamp(min, max),
-            min: min,
-            max: max,
-            divisions: divisions,
-            onChanged: onChanged,
+          const SizedBox(height: 4),
+          SliderTheme(
+            data: SliderThemeData(
+              trackHeight: 3,
+              activeTrackColor: colors.primary,
+              inactiveTrackColor: Colors.white.withValues(alpha: 0.08),
+              thumbColor: colors.primary,
+              overlayColor: colors.primary.withValues(alpha: 0.1),
+              thumbShape: const RoundSliderThumbShape(
+                enabledThumbRadius: 6,
+              ),
+              overlayShape: const RoundSliderOverlayShape(overlayRadius: 14),
+            ),
+            child: Slider(
+              value: value.clamp(min, max),
+              min: min,
+              max: max,
+              divisions: divisions,
+              onChanged: onChanged,
+            ),
           ),
         ],
       ),
     );
+  }
+}
+
+class _SoundSelectorGrid extends StatelessWidget {
+  const _SoundSelectorGrid({
+    required this.selectedMode,
+    required this.onChanged,
+  });
+
+  final SoundMode selectedMode;
+  final ValueChanged<SoundMode> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final modes = SoundMode.values;
+
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        mainAxisSpacing: 10,
+        crossAxisSpacing: 10,
+        childAspectRatio: 1.85,
+      ),
+      itemCount: modes.length,
+      itemBuilder: (context, index) {
+        final mode = modes[index];
+        final isActive = selectedMode == mode;
+        final icon = _getIcon(mode);
+        final label = _getLabel(mode);
+
+        return GestureDetector(
+          onTap: () => onChanged(mode),
+          child: Container(
+            decoration: BoxDecoration(
+              color: isActive
+                  ? Colors.white.withValues(alpha: 0.08)
+                  : Colors.white.withValues(alpha: 0.03),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: isActive
+                    ? colors.primary.withValues(alpha: 0.6)
+                    : Colors.white.withValues(alpha: 0.05),
+                width: isActive ? 1.5 : 1,
+              ),
+              boxShadow: isActive
+                  ? [
+                      BoxShadow(
+                        color: colors.primary.withValues(alpha: 0.15),
+                        blurRadius: 10,
+                        spreadRadius: 1,
+                      ),
+                    ]
+                  : null,
+            ),
+            child: Stack(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Container(
+                        width: 30,
+                        height: 30,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: isActive
+                              ? colors.primary.withValues(alpha: 0.15)
+                              : Colors.white.withValues(alpha: 0.03),
+                        ),
+                        child: Icon(
+                          icon,
+                          size: 16,
+                          color: isActive ? colors.primary : Colors.white.withValues(alpha: 0.4),
+                        ),
+                      ),
+                      Text(
+                        label,
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: isActive ? Colors.white : Colors.white.withValues(alpha: 0.4),
+                          fontWeight: isActive ? FontWeight.w600 : FontWeight.w400,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (isActive)
+                  Positioned(
+                    bottom: 0,
+                    left: 0,
+                    right: 0,
+                    child: Container(
+                      height: 3,
+                      decoration: BoxDecoration(
+                        color: colors.primary,
+                        borderRadius: const BorderRadius.only(
+                          bottomLeft: Radius.circular(20),
+                          bottomRight: Radius.circular(20),
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  IconData _getIcon(SoundMode mode) {
+    return switch (mode) {
+      SoundMode.off => Icons.volume_off_outlined,
+      SoundMode.whiteNoise => Icons.air_outlined,
+      SoundMode.breathGuide => Icons.bubble_chart_outlined,
+      SoundMode.heartbeat => Icons.favorite_border_outlined,
+      SoundMode.mixed => Icons.music_note_outlined,
+    };
+  }
+
+  String _getLabel(SoundMode mode) {
+    return switch (mode) {
+      SoundMode.off => 'Silent',
+      SoundMode.whiteNoise => 'White Noise',
+      SoundMode.breathGuide => 'Breath Guide',
+      SoundMode.heartbeat => 'Heartbeat',
+      SoundMode.mixed => 'Mixed Atmosphere',
+    };
+  }
+}
+
+class _LightModeSelector extends StatelessWidget {
+  const _LightModeSelector({
+    required this.selectedMode,
+    required this.onChanged,
+  });
+
+  final LightMode selectedMode;
+  final ValueChanged<LightMode> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final modes = LightMode.values;
+
+    return Container(
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.03),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.05),
+        ),
+      ),
+      child: Row(
+        children: modes.map((mode) {
+          final isActive = selectedMode == mode;
+          final label = _getLabel(mode);
+          final icon = _getIcon(mode);
+
+          return Expanded(
+            child: GestureDetector(
+              onTap: () => onChanged(mode),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                padding: const EdgeInsets.symmetric(vertical: 10),
+                decoration: BoxDecoration(
+                  color: isActive
+                      ? colors.primary.withValues(alpha: 0.15)
+                      : Colors.transparent,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: isActive
+                        ? colors.primary.withValues(alpha: 0.3)
+                        : Colors.transparent,
+                  ),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      icon,
+                      size: 16,
+                      color: isActive ? colors.primary : Colors.white.withValues(alpha: 0.4),
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      label,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: isActive ? Colors.white : Colors.white.withValues(alpha: 0.4),
+                        fontWeight: isActive ? FontWeight.w600 : FontWeight.w400,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+  IconData _getIcon(LightMode mode) {
+    return switch (mode) {
+      LightMode.off => Icons.dark_mode_outlined,
+      LightMode.breathingPulse => Icons.blur_circular_outlined,
+      LightMode.sunrise => Icons.wb_sunny_outlined,
+    };
+  }
+
+  String _getLabel(LightMode mode) {
+    return switch (mode) {
+      LightMode.off => 'Off',
+      LightMode.breathingPulse => 'Breath',
+      LightMode.sunrise => 'Sunrise',
+    };
   }
 }
 
@@ -893,42 +1296,77 @@ class JournalCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(18),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Sleep journal',
-              style: Theme.of(
-                context,
-              ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800),
+    final colors = Theme.of(context).colorScheme;
+    return _GlassCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'SLEEP JOURNAL',
+            style: Theme.of(context).textTheme.titleSmall?.copyWith(
+              color: Colors.white.withValues(alpha: 0.4),
+              fontWeight: FontWeight.w600,
+              letterSpacing: 1.5,
             ),
-            const SizedBox(height: 10),
-            if (logs.isEmpty)
-              Text(
-                'Complete a session to record how the night felt.',
-                style: Theme.of(context).textTheme.bodyMedium,
-              )
-            else
-              ...logs
-                  .take(5)
-                  .map(
-                    (log) => ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      leading: Icon(_ratingIcon(log.rating)),
-                      title: Text(_ratingLabel(log.rating)),
-                      subtitle: Text(
-                        log.notes.isEmpty ? _formatDate(log.date) : log.notes,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
+          ),
+          const SizedBox(height: 14),
+          if (logs.isEmpty)
+            Text(
+              'Complete a session to record how the night felt.',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: Colors.white.withValues(alpha: 0.3),
+              ),
+            )
+          else
+            ...logs.take(5).map((log) {
+              return Column(
+                children: [
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: Container(
+                      width: 38,
+                      height: 38,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: colors.primary.withValues(alpha: 0.1),
                       ),
-                      trailing: Text(_formatDate(log.date)),
+                      child: Icon(
+                        _ratingIcon(log.rating),
+                        color: colors.primary,
+                        size: 20,
+                      ),
+                    ),
+                    title: Text(
+                      _ratingLabel(log.rating),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white,
+                      ),
+                    ),
+                    subtitle: Text(
+                      log.notes.isEmpty ? _formatDate(log.date) : log.notes,
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.4),
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    trailing: Text(
+                      _formatDate(log.date),
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.3),
+                        fontSize: 12,
+                      ),
                     ),
                   ),
-          ],
-        ),
+                  Divider(
+                    color: Colors.white.withValues(alpha: 0.05),
+                    height: 1,
+                  ),
+                ],
+              );
+            }),
+        ],
       ),
     );
   }
