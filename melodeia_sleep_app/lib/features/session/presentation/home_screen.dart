@@ -227,10 +227,7 @@ class _HomeScreenState extends State<HomeScreen> {
           gradient: RadialGradient(
             center: const Alignment(0, -0.4),
             radius: 1.3,
-            colors: [
-              radialBgColor,
-              outerBgColor,
-            ],
+            colors: [radialBgColor, outerBgColor],
             stops: const [0.0, 1.0],
           ),
         ),
@@ -286,10 +283,7 @@ class _GlassCard extends StatelessWidget {
           width: 1,
         ),
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: child,
-      ),
+      child: Padding(padding: const EdgeInsets.all(20), child: child),
     );
   }
 }
@@ -383,7 +377,7 @@ class _HeaderState extends State<_Header> {
                 ),
                 const SizedBox(width: 12),
                 Text(
-                  'LUNA',
+                  'Melodeia Sleep',
                   style: Theme.of(context).textTheme.titleLarge?.copyWith(
                     color: Colors.white,
                     fontWeight: FontWeight.w300,
@@ -449,9 +443,7 @@ class _HeaderState extends State<_Header> {
             decoration: BoxDecoration(
               color: colors.primary.withValues(alpha: 0.05),
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                color: colors.primary.withValues(alpha: 0.15),
-              ),
+              border: Border.all(color: colors.primary.withValues(alpha: 0.15)),
             ),
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
@@ -485,9 +477,7 @@ class _HeaderState extends State<_Header> {
             decoration: BoxDecoration(
               color: colors.primary.withValues(alpha: 0.08),
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                color: colors.primary.withValues(alpha: 0.2),
-              ),
+              border: Border.all(color: colors.primary.withValues(alpha: 0.2)),
             ),
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
@@ -542,7 +532,7 @@ class SessionSetupCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'TONIGHT SESSION',
+            'Tonight session',
             style: Theme.of(context).textTheme.titleSmall?.copyWith(
               color: Colors.white.withValues(alpha: 0.4),
               fontWeight: FontWeight.w600,
@@ -632,10 +622,7 @@ class SessionSetupCard extends StatelessWidget {
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(18),
               gradient: LinearGradient(
-                colors: [
-                  colors.primary,
-                  colors.primary.withValues(alpha: 0.7),
-                ],
+                colors: [colors.primary, colors.primary.withValues(alpha: 0.7)],
               ),
               boxShadow: [
                 BoxShadow(
@@ -649,7 +636,7 @@ class SessionSetupCard extends StatelessWidget {
               onPressed: onStart,
               icon: const Icon(Icons.nightlight_round, size: 18),
               label: const Text(
-                'START SLEEP SESSION',
+                'Start sleep session',
                 style: TextStyle(
                   fontWeight: FontWeight.w600,
                   letterSpacing: 1.2,
@@ -738,9 +725,7 @@ class _PremiumSliderRow extends StatelessWidget {
               inactiveTrackColor: Colors.white.withValues(alpha: 0.08),
               thumbColor: colors.primary,
               overlayColor: colors.primary.withValues(alpha: 0.1),
-              thumbShape: const RoundSliderThumbShape(
-                enabledThumbRadius: 6,
-              ),
+              thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
               overlayShape: const RoundSliderOverlayShape(overlayRadius: 14),
             ),
             child: Slider(
@@ -814,7 +799,10 @@ class _SoundSelectorGrid extends StatelessWidget {
             child: Stack(
               children: [
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 10,
+                  ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -831,14 +819,20 @@ class _SoundSelectorGrid extends StatelessWidget {
                         child: Icon(
                           icon,
                           size: 16,
-                          color: isActive ? colors.primary : Colors.white.withValues(alpha: 0.4),
+                          color: isActive
+                              ? colors.primary
+                              : Colors.white.withValues(alpha: 0.4),
                         ),
                       ),
                       Text(
                         label,
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: isActive ? Colors.white : Colors.white.withValues(alpha: 0.4),
-                          fontWeight: isActive ? FontWeight.w600 : FontWeight.w400,
+                          color: isActive
+                              ? Colors.white
+                              : Colors.white.withValues(alpha: 0.4),
+                          fontWeight: isActive
+                              ? FontWeight.w600
+                              : FontWeight.w400,
                           fontSize: 13,
                         ),
                       ),
@@ -909,9 +903,7 @@ class _LightModeSelector extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.03),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: Colors.white.withValues(alpha: 0.05),
-        ),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
       ),
       child: Row(
         children: modes.map((mode) {
@@ -942,14 +934,20 @@ class _LightModeSelector extends StatelessWidget {
                     Icon(
                       icon,
                       size: 16,
-                      color: isActive ? colors.primary : Colors.white.withValues(alpha: 0.4),
+                      color: isActive
+                          ? colors.primary
+                          : Colors.white.withValues(alpha: 0.4),
                     ),
                     const SizedBox(width: 6),
                     Text(
                       label,
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: isActive ? Colors.white : Colors.white.withValues(alpha: 0.4),
-                        fontWeight: isActive ? FontWeight.w600 : FontWeight.w400,
+                        color: isActive
+                            ? Colors.white
+                            : Colors.white.withValues(alpha: 0.4),
+                        fontWeight: isActive
+                            ? FontWeight.w600
+                            : FontWeight.w400,
                         letterSpacing: 0.5,
                       ),
                     ),
